@@ -56,13 +56,7 @@ class MainActivity : ComponentActivity() {
     private val locationPermissionLauncher =
         registerForActivityResult(
             ActivityResultContracts.RequestPermission()
-        ) { isGranted ->
-            if (isGranted) {
-                println("Location Permission GRANTED")
-            } else {
-                println("Location Permission DENIED")
-            }
-        }
+        ) {         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

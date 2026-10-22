@@ -13,6 +13,11 @@ import org.osmdroid.tileprovider.tilesource.FileBasedTileSource
 import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
+import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
+import android.content.pm.PackageManager
+import android.Manifest
+import androidx.core.content.ContextCompat
 
 @Composable
 fun OsmMapView(modifier: Modifier = Modifier) {
@@ -45,8 +50,17 @@ fun OsmMapView(modifier: Modifier = Modifier) {
 
             // Начальное положение камеры и зум
             controller.setZoom(13.0)
-            //controller.setCenter(cityBounds.centerWithDateLine)
-            //controller.setCenter(cityBounds.)
+            controller.setCenter(cityBounds.centerWithDateLine)
+        }
+    }
+
+    // Геопозиция
+    val locationOverlay = remember(mapView) {
+        MyLocationNewOverlay(
+            GpsMyLocationProvider(context),
+            mapView
+        ).apply {
+            setDrawAccuracyEnabled(true)
         }
     }
 
@@ -61,21 +75,65 @@ fun OsmMapView(modifier: Modifier = Modifier) {
         // Привязываем провайдер к карте
         mapView.setTileProvider(offlineProvider)
 
-        // Ищем источник тайлов внутри базы данных
+        // Тайлы внутри бд
         val archives = offlineProvider.archives
         if (archives.isNotEmpty() && archives[0].tileSources.isNotEmpty()) {
             val sourceName = archives[0].tileSources.first()
             mapView.setTileSource(FileBasedTileSource.getSource(sourceName))
         } else {
-            // Резервный вариант, если в БД не найдены тайлы
+            // Оработка исключения
             mapView.setTileSource(FileBasedTileSource.getSource("Mapnik") ?: mapView.tileProvider.tileSource)
         }
 
-        // Отключаем использование сети
-        mapView.setUseDataConnection(false)
+        // Геопозиция
+        val hasFineLocation = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val hasCoarseLocation = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasFineLocation || hasCoarseLocation) {
+            mapView.overlays.remove(locationOverlay)
+            mapView.overlays.add(locationOverlay)
+
+            // Перемещаем карту к пользователю после получения координат
+            locationOverlay.runOnFirstFix {
+                mapView.post {
+                    locationOverlay.myLocation?.let { geoPoint ->
+                        mapView.controller.animateTo(geoPoint)
+                    }
+                }
+            }
+
+//            locationOverlay.runOnFirstFix {
+//                mapView.post {
+//                    val point = locationOverlay.myLocation
+//                    println("GPS LOCATION: $point")
+//                    point?.let { mapView.controller.animateTo(it) }
+//                }
+//            }
+
+            locationOverlay.enableMyLocation()
+        }
+
+        onDispose {
+            locationOverlay.disableMyLocation()
+            mapView.overlays.remove(locationOverlay)
+            mapView.onDetach()
+            offlineProvider.detach()
+        }
 
         // Очищаем ресурсы при удалении карты с экрана
         onDispose {
+            mapView.onDetach()
+            offlineProvider.detach()
+
+            locationOverlay.disableMyLocation()
+            mapView.overlays.remove(locationOverlay)
             mapView.onDetach()
             offlineProvider.detach()
         }
