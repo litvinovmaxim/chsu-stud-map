@@ -1,5 +1,7 @@
 package com.example.myapplication
 
+import android.Manifest
+import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -43,12 +45,30 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.example.myapplication.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Request Location permission
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PERMISSION_GRANTED) {
+            println("Location Permission GRANTED")
+        } else {
+            println("Location Permission DENIED")
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                1
+            )
+        }
+
         setContent {
             MyApplicationTheme {
                 MyApplicationApp()
@@ -202,15 +222,6 @@ fun MyApplicationApp() {
             ) {
                 //Переключаем содержимое экрана
                 when (currentDestination) {
-                    AppDestinations.EVENTS -> {
-                        Box(contentAlignment = Alignment.Center) {
-                            //TODO: вкладка события
-                            Text("Здесь будут события")
-                        }
-                    }
-                    AppDestinations.MAP -> {
-                        OsmMapView()
-                    }
                     AppDestinations.PROFILE -> {
                         Box(contentAlignment = Alignment.Center) {
                             //TODO: вкладка профиль
@@ -222,8 +233,25 @@ fun MyApplicationApp() {
                                     //TODO: действия при клике
                                 }
                             )
-                            }
                         }
+                    }
+
+                    AppDestinations.MAP -> {
+                        OsmMapView()
+                    }
+
+                    AppDestinations.LIST -> {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("Cписок корпусов")
+                        }
+                    }
+
+                    AppDestinations.EVENTS -> {
+                        Box(contentAlignment = Alignment.Center) {
+                            //TODO: вкладка события
+                            Text("Здесь будут события")
+                        }
+                    }
                     }
                 }
             }
@@ -233,16 +261,19 @@ fun MyApplicationApp() {
 
 //Список всех доступных вкладок
 enum class AppDestinations(val label: String) {
-    EVENTS("События"),
+    PROFILE("Профиль"),
     MAP("Карта"),
-    PROFILE("Профиль");
+    LIST("Корпуса"),
+    EVENTS("События");
+
 
     //Возвращает нужную иконку для каждой вкладки
     val iconRes: Int
         get() = when (this) {
-            EVENTS -> R.drawable.ic_calendar
-            MAP -> R.drawable.ic_map
             PROFILE -> R.drawable.ic_account_box
+            MAP -> R.drawable.ic_map
+            LIST -> R.drawable.ic_school
+            EVENTS -> R.drawable.ic_calendar
         }
 }
 

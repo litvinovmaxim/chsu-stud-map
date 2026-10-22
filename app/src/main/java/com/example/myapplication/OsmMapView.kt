@@ -44,8 +44,9 @@ fun OsmMapView(modifier: Modifier = Modifier) {
             setScrollableAreaLimitDouble(cityBounds)
 
             // Начальное положение камеры и зум
-            controller.setZoom(12.0)
-            controller.setCenter(cityBounds.centerWithDateLine)
+            controller.setZoom(13.0)
+            //controller.setCenter(cityBounds.centerWithDateLine)
+            //controller.setCenter(cityBounds.)
         }
     }
 
