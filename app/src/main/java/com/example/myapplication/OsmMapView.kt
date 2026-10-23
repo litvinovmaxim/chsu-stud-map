@@ -19,6 +19,16 @@ import android.content.pm.PackageManager
 import android.Manifest
 import androidx.core.content.ContextCompat
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+
 @Composable
 fun OsmMapView(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -99,24 +109,6 @@ fun OsmMapView(modifier: Modifier = Modifier) {
         if (hasFineLocation || hasCoarseLocation) {
             mapView.overlays.remove(locationOverlay)
             mapView.overlays.add(locationOverlay)
-
-            // Перемещаем карту к пользователю после получения координат
-            locationOverlay.runOnFirstFix {
-                mapView.post {
-                    locationOverlay.myLocation?.let { geoPoint ->
-                        mapView.controller.animateTo(geoPoint)
-                    }
-                }
-            }
-
-//            locationOverlay.runOnFirstFix {
-//                mapView.post {
-//                    val point = locationOverlay.myLocation
-//                    println("GPS LOCATION: $point")
-//                    point?.let { mapView.controller.animateTo(it) }
-//                }
-//            }
-
             locationOverlay.enableMyLocation()
         }
 
@@ -129,9 +121,6 @@ fun OsmMapView(modifier: Modifier = Modifier) {
 
         // Очищаем ресурсы при удалении карты с экрана
         onDispose {
-            mapView.onDetach()
-            offlineProvider.detach()
-
             locationOverlay.disableMyLocation()
             mapView.overlays.remove(locationOverlay)
             mapView.onDetach()
@@ -139,8 +128,34 @@ fun OsmMapView(modifier: Modifier = Modifier) {
         }
     }
 
-    AndroidView(
-        factory = { mapView },
-        modifier = modifier.fillMaxSize()
-    )
+    Box(modifier = modifier.fillMaxSize()) {
+        AndroidView(
+            factory = { mapView },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        FloatingActionButton(
+            onClick = {
+                val location = locationOverlay.myLocation
+                if (location != null) {
+                    mapView.controller.animateTo(location)
+                } else {
+                    locationOverlay.enableMyLocation()
+                    locationOverlay.runOnFirstFix {
+                        mapView.post {
+                            locationOverlay.myLocation?.let { geoPoint ->
+                                mapView.controller.animateTo(geoPoint)
+                            }
+                        }
+                    }
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .size(56.dp)
+        ) {
+            Text(" ")
+        }
+    }
 }
