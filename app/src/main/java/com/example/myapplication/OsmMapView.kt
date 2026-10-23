@@ -1,4 +1,4 @@
-package com.example.myapplication
+package ru.chsu.studentmap
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -24,10 +24,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
 
 @Composable
 fun OsmMapView(modifier: Modifier = Modifier) {
@@ -155,7 +155,10 @@ fun OsmMapView(modifier: Modifier = Modifier) {
                 .padding(16.dp)
                 .size(56.dp)
         ) {
-            Text(" ")
+            Icon(
+                imageVector = Icons.Filled.MyLocation,
+                contentDescription = "Геопозиция"
+            )
         }
     }
 }

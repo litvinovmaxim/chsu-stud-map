@@ -1,4 +1,4 @@
-package com.example.myapplication
+package ru.chsu.studentmap
 
 import android.content.Context
 import android.util.Log
@@ -13,7 +13,7 @@ object OsmTileHelper {
     private var cachedDbFile: File? = null
 
     /**
-     * Копирует файл тайлов из assets во внутреннее хранилище, если его там ещё нет.
+     * Копирует файл тайлов из assets во внутреннее хранилище, если его там ещё нет
      * Возвращает итоговый File.
      */
     fun getOfflineDatabase(context: Context): File {

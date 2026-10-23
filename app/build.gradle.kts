@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myapplication"
+    namespace = "ru.chsu.studentmap"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.myapplication"
+        applicationId = "ru.chsu.studentmap"
         minSdk = 24
         targetSdk = 37
         versionCode = 1

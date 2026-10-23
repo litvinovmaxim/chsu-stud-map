@@ -1,4 +1,4 @@
-package com.example.myapplication
+package ru.chsu.studentmap
 
 import android.Manifest
 import android.content.pm.PackageManager
