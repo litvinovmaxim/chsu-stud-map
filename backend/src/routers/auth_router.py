@@ -6,7 +6,6 @@ from src.db.database import get_db
 from src.services import auth_service
 from src.models import User
 from src.services.auth_service import create_access_token
-from src.services.auth_service import revoke_token
 
 security = HTTPBearer()
 
@@ -49,5 +48,5 @@ def logout(
 
     return {
         "status_code": 200,
-        "message": revoke_token(token, db)
+        "message": "Successfully logged out"
     }

@@ -7,3 +7,6 @@ Auth
 /auth/register                    - POST   - Регистрация
 /auth/login                       - POST   - Вход
 /auth/lodout                      - POST   - Выход
+
+Users
+users/update/{user_id}            - PUT    - Обноваление профиля (поменять имя, фамилию, пароль, почту)

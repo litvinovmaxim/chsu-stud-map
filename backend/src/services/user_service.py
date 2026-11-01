@@ -13,16 +13,21 @@ def update_user(db: Session, user_id: int, data):
     )
 
     if "email" in update_data:
-        existing = user_repository.get_user_by_email(
-            db, update_data["email"]
-        )
+        existing = user_repository.get_user_by_email(db, update_data["email"])
 
         if existing and existing.id != user_id:
             raise Exception("Email already exists")
 
     if "password" in update_data:
-        update_data["password"] = pwd_context.hash(
-            update_data["password"]
-        )
+        update_data["password"] = pwd_context.hash(update_data["password"])
 
-    return user_repository.update_user(db, user, data.dict(exclude_unset=True))
+    return user_repository.update_user(db, user, update_data)
+
+def delete_user(db: Session, user_id: int):
+    user = user_repository.get_user_by_id(db, user_id)
+
+    if not user:
+        return False
+
+    user_repository.delete_user(db, user)
+    return True

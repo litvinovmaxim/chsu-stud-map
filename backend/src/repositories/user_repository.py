@@ -24,5 +24,4 @@ def update_user(db: Session, user: User, data: dict):
 
 '''def delete_user(db: Session, user: User):
     db.delete(user)
-    db.commit()
-'''
+    db.commit()'''
