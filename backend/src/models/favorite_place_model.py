@@ -11,6 +11,9 @@ class FavoritePlace(Base):
     address = Column(String)
     latitude = Column(Float)
     longitude = Column(Float)
+    category = Column(String, nullable=True)
+    osm_type = Column(String, nullable=True)
+    osm_id = Column(Integer, nullable=True)
 
     # связи
     users = relationship("UserPlace", back_populates="place")
