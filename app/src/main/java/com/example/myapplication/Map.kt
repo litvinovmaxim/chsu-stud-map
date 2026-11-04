@@ -1,5 +1,10 @@
 package ru.chsu.studentmap
 
+/**
+ * Точки карты живут локально (сейчас — sampleMapPoints).
+ * На карту список корпусов с бэка НЕ тянем.
+ * TODO: при необходимости перенести sampleMapPoints в Room, не меняя OsmMapView.
+ */
 enum class PlaceCategory(val title: String) {
     ALL("Все"),
     BUILDINGS("Корпуса"),

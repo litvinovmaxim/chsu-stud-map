@@ -34,22 +34,39 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import android.widget.Toast
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import ru.chsu.studentmap.ui.auth.AuthScreen
+import ru.chsu.studentmap.ui.auth.AuthViewModel
+import ru.chsu.studentmap.ui.buildings.BuildingDetailScreen
+import ru.chsu.studentmap.ui.buildings.BuildingsScreen
+import ru.chsu.studentmap.ui.buildings.BuildingsViewModel
+import ru.chsu.studentmap.ui.events.EventDetailScreen
+import ru.chsu.studentmap.ui.events.EventsScreen
+import ru.chsu.studentmap.ui.events.EventsViewModel
+import ru.chsu.studentmap.ui.favorites.FavoritePlacesScreen
+import ru.chsu.studentmap.ui.favorites.FavoritesViewModel
+import ru.chsu.studentmap.ui.favorites.MyEventsScreen
 
 class MainActivity : ComponentActivity() {
 
@@ -194,11 +211,39 @@ fun ProfileScreen(
     }
 }
 
-@PreviewScreenSizes
+private enum class ProfileSubScreen { MENU, AUTH, FAVORITES, MY_EVENTS }
+
 @Composable
-fun MyApplicationApp() {
+fun MyApplicationApp(
+    authViewModel: AuthViewModel = viewModel(),
+    buildingsViewModel: BuildingsViewModel = viewModel(),
+    eventsViewModel: EventsViewModel = viewModel(),
+    favoritesViewModel: FavoritesViewModel = viewModel()
+) {
     //Храним состояние текущей вкладки
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.MAP) }
+    var profileSubScreen by rememberSaveable { mutableStateOf(ProfileSubScreen.MENU) }
+
+    val session by authViewModel.session.collectAsStateWithLifecycle()
+    val authForm by authViewModel.form.collectAsStateWithLifecycle()
+    val buildingsState by buildingsViewModel.ui.collectAsStateWithLifecycle()
+    val eventsState by eventsViewModel.ui.collectAsStateWithLifecycle()
+    val favoritesState by favoritesViewModel.ui.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(session.isLoggedIn) {
+        if (session.isLoggedIn && profileSubScreen == ProfileSubScreen.AUTH) {
+            profileSubScreen = ProfileSubScreen.MENU
+        }
+    }
+
+    LaunchedEffect(profileSubScreen) {
+        when (profileSubScreen) {
+            ProfileSubScreen.FAVORITES -> favoritesViewModel.loadPlaces()
+            ProfileSubScreen.MY_EVENTS -> favoritesViewModel.loadMyEvents()
+            else -> Unit
+        }
+    }
 
     //Контейнер с навигацией
     NavigationSuiteScaffold(
@@ -229,16 +274,74 @@ fun MyApplicationApp() {
                 //Переключаем содержимое экрана
                 when (currentDestination) {
                     AppDestinations.PROFILE -> {
-                        Box(contentAlignment = Alignment.Center) {
-                            //TODO: вкладка профиль
-                            ProfileScreen (
-                                onFavoritePlacesClick = {
-                                    //TODO: действия при клилике
-                                },
-                                onMyEventsClick = {
-                                    //TODO: действия при клике
+                        when (profileSubScreen) {
+                            ProfileSubScreen.AUTH -> {
+                                BackHandler { profileSubScreen = ProfileSubScreen.MENU }
+                                AuthScreen(
+                                    state = authForm,
+                                    onName = authViewModel::onName,
+                                    onSurname = authViewModel::onSurname,
+                                    onEmail = authViewModel::onEmail,
+                                    onPassword = authViewModel::onPassword,
+                                    onToggleMode = authViewModel::toggleMode,
+                                    onSubmit = authViewModel::submit
+                                )
+                            }
+
+                            ProfileSubScreen.FAVORITES -> {
+                                BackHandler { profileSubScreen = ProfileSubScreen.MENU }
+                                FavoritePlacesScreen(
+                                    state = favoritesState,
+                                    onBack = { profileSubScreen = ProfileSubScreen.MENU },
+                                    onRemove = favoritesViewModel::removePlace
+                                )
+                            }
+
+                            ProfileSubScreen.MY_EVENTS -> {
+                                BackHandler { profileSubScreen = ProfileSubScreen.MENU }
+                                MyEventsScreen(
+                                    state = favoritesState,
+                                    onBack = { profileSubScreen = ProfileSubScreen.MENU }
+                                )
+                            }
+
+                            ProfileSubScreen.MENU -> {
+                                Column {
+                                    ProfileScreen(
+                                        userName = session.displayName,
+                                        userEmail = session.email ?: "",
+                                        onFavoritePlacesClick = {
+                                            profileSubScreen = if (session.isLoggedIn) {
+                                                ProfileSubScreen.FAVORITES
+                                            } else {
+                                                ProfileSubScreen.AUTH
+                                            }
+                                        },
+                                        onMyEventsClick = {
+                                            profileSubScreen = if (session.isLoggedIn) {
+                                                ProfileSubScreen.MY_EVENTS
+                                            } else {
+                                                ProfileSubScreen.AUTH
+                                            }
+                                        }
+                                    )
+                                    if (session.isLoggedIn) {
+                                        TextButton(
+                                            onClick = { authViewModel.logout() },
+                                            modifier = Modifier.padding(horizontal = 16.dp)
+                                        ) {
+                                            Text("Выход")
+                                        }
+                                    } else {
+                                        TextButton(
+                                            onClick = { profileSubScreen = ProfileSubScreen.AUTH },
+                                            modifier = Modifier.padding(horizontal = 16.dp)
+                                        ) {
+                                            Text("Войти")
+                                        }
+                                    }
                                 }
-                            )
+                            }
                         }
                     }
 
@@ -247,22 +350,59 @@ fun MyApplicationApp() {
                     }
 
                     AppDestinations.LIST -> {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("Cписок корпусов")
+                        val selectedBuilding = buildingsState.selected
+                        if (selectedBuilding == null) {
+                            BuildingsScreen(
+                                state = buildingsState,
+                                onQueryChange = buildingsViewModel::onQueryChange,
+                                onCategorySelected = buildingsViewModel::onCategorySelected,
+                                onPlaceClick = buildingsViewModel::select,
+                                onRetry = buildingsViewModel::load
+                            )
+                        } else {
+                            BackHandler { buildingsViewModel.select(null) }
+                            BuildingDetailScreen(
+                                place = selectedBuilding,
+                                onBack = { buildingsViewModel.select(null) },
+                                onAddFavorite = { place, callback ->
+                                    if (!session.isLoggedIn) {
+                                        callback("Войдите в аккаунт")
+                                    } else {
+                                        buildingsViewModel.addToFavorites(place, callback)
+                                    }
+                                }
+                            )
                         }
                     }
 
                     AppDestinations.EVENTS -> {
-                        Box(contentAlignment = Alignment.Center) {
-                            //TODO: вкладка события
-                            Text("Здесь будут события")
+                        val selectedEvent = eventsState.selected
+                        if (selectedEvent == null) {
+                            EventsScreen(
+                                state = eventsState,
+                                onQueryChange = eventsViewModel::onQueryChange,
+                                onFilterChange = eventsViewModel::onFilterChange,
+                                onEventClick = eventsViewModel::select
+                            )
+                        } else {
+                            BackHandler { eventsViewModel.select(null) }
+                            EventDetailScreen(
+                                event = selectedEvent,
+                                isFavorite = selectedEvent.id in eventsState.favoriteIds,
+                                onBack = { eventsViewModel.select(null) },
+                                onToggleFavorite = {
+                                    eventsViewModel.toggleFavorite(selectedEvent) { message ->
+                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            )
                         }
-                    }
                     }
                 }
             }
         }
     }
+}
 
 
 //Список всех доступных вкладок
@@ -287,6 +427,6 @@ enum class AppDestinations(val label: String) {
 @Composable
 fun AppPreview() {
     MyApplicationTheme {
-        MyApplicationApp()
+        ProfileScreen()
     }
 }
