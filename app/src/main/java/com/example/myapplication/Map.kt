@@ -17,9 +17,9 @@ data class MapPoint(
 )
 
 val sampleMapPoints = listOf(
-    MapPoint("1", "Главный корпус ЧГУ", PlaceCategory.BUILDINGS, 59.1235, 37.9290),
-    MapPoint("2", "Корпус на Горького", PlaceCategory.BUILDINGS, 59.1252, 37.9220),
-    MapPoint("3", "Общежитие №1", PlaceCategory.DORMITORIES, 59.1280, 37.9330),
-    MapPoint("4", "Общежитие №2", PlaceCategory.DORMITORIES, 59.1265, 37.9325),
+    MapPoint("1", "Корпус №1", PlaceCategory.BUILDINGS, 59.1203, 37.9304),
+    MapPoint("2", "Корпус №6", PlaceCategory.BUILDINGS, 59.1207, 37.9295),
+    MapPoint("3", "Общежитие №1", PlaceCategory.DORMITORIES, 59.1381, 37.9262),
+    MapPoint("4", "Общежитие №2", PlaceCategory.DORMITORIES, 59.1347, 37.8920),
     MapPoint("5", "Студенческая столовая", PlaceCategory.FOOD, 59.1205, 37.9150)
 )
