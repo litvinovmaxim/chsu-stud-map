@@ -18,13 +18,26 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
- * Контракт FastAPI из backend/src/app.py.
- * Префиксы: /auth, /users, /places, /favorites, /events.
+ * REST API контракт для взаимодействия с бэкендом StudMap (FastAPI).
+ * Соответствует роутерам из backend/src/routers:
+ * - auth_router.py (префикс /auth)
+ * - user_router.py (префикс /users)
+ * - favorite_place_router.py (префикс /favorites)
+ * - place_router.py (префикс /places)
  */
 interface StudMapApi {
 
-    // --- Auth: параметры как Query, потому что на бэке это обычные аргументы функции, не Body ---
+    // ==========================================
+    // Раздел: Аутентификация и регистрация (/auth)
+    // ==========================================
 
+    /**
+     * Регистрация нового аккаунта.
+     * Эндпоинт на бэкенде: @router.post("/register") в backend/src/routers/auth_router.py
+     * Параметры name, surname, email, password объявлены в сигнатуре FastAPI как скалярные типы str,
+     * поэтому FastAPI принимает их в Query параметрах URL: POST /auth/register?name=...&surname=...&email=...&password=...
+     * В базе данных пароль хешируется через pbkdf2_sha256 (см. backend/src/services/auth_service.py).
+     */
     @POST("auth/register")
     suspend fun register(
         @Query("name") name: String,
@@ -33,24 +46,57 @@ interface StudMapApi {
         @Query("password") password: String
     ): MessageResponseDto
 
+    /**
+     * Авторизация пользователя (вход).
+     * Эндпоинт на бэкенде: @router.post("/login") в backend/src/routers/auth_router.py
+     * Параметры передаются через Query (POST /auth/login?email=...&password=...).
+     * При успешной аутентификации сервер возвращает JWT токен (access_token) со сроком жизни 30 минут.
+     * В payload токена зашит sub: "<user_id>".
+     */
     @POST("auth/login")
     suspend fun login(
         @Query("email") email: String,
         @Query("password") password: String
     ): TokenResponseDto
 
+    /**
+     * Завершение сессии (выход).
+     * Эндпоинт на бэкенде: @router.post("/logout") в backend/src/routers/auth_router.py
+     * Требует HTTP-заголовок Authorization: Bearer <access_token>.
+     * Перехватчик authInterceptor в AppContainer автоматически подставляет этот заголовок.
+     */
     @POST("auth/logout")
-    suspend fun logout(): MessageResponseDto
+    suspend fun logout(
+        @retrofit2.http.Header("Authorization") authHeader: String? = null
+    ): MessageResponseDto
 
+    // ==========================================
+    // Раздел: Профиль пользователя (/users)
+    // ==========================================
+
+    /**
+     * Обновление данных профиля пользователя.
+     * Эндпоинт на бэкенде: @router.put("/update/{user_id}") в backend/src/routers/user_router.py
+     * Требует заголовок Authorization: Bearer <access_token>.
+     * В теле передаётся JSON (UserUpdateDto) с полями: name, surname, email, password.
+     * Любое поле со значением null игнорируется бэкендом (exclude_unset=True, exclude_none=True).
+     * 
+     * Полезный приём: при отправке пустого UserUpdateDto() поля в БД не меняются,
+     * но бэкенд возвращает полный актуальный объект UserResponseDto(id, name, surname, email).
+     * Это позволяет загружать профиль пользователя после входа.
+     */
     @PUT("users/update/{userId}")
     suspend fun updateUser(
         @Path("userId") userId: Int,
         @Body data: UserUpdateDto
     ): UserResponseDto
 
+    // ==========================================
+    // Раздел: Места и карта (/places, /favorites)
+    // ==========================================
+
     /**
-     * Список объектов OSM вокруг точки.
-     * Категории бэка: buildings, dormitories, sports, cafes, libraries, shops, pharmacies.
+     * Список объектов OSM вокруг заданной гео-точки.
      */
     @GET("places/map/places")
     suspend fun getMapPlaces(
@@ -84,10 +130,6 @@ interface StudMapApi {
         @Path("eventId") eventId: Int
     ): MessageResponseDto
 
-    /**
-     * TODO: эндпоинт заложен в app.py (`/events`), но routers/event_router.py в репозитории нет.
-     * Вызов оставлен, чтобы UI был готов; при 404/ошибке клиент покажет локальные моки.
-     */
     @GET("events")
     suspend fun getEvents(): List<EventDto>
 }

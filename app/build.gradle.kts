@@ -12,14 +12,13 @@ android {
     defaultConfig {
         applicationId = "ru.chsu.studentmap"
         minSdk = 24
-        targetSdk = 37
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // TODO: IP компьютера в Wi‑Fi
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://192.168.0.102:8000/\"")
     }
 
     buildTypes {
