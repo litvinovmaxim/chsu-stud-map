@@ -7,10 +7,6 @@ from starlette.middleware.cors import CORSMiddleware
 from src.routers import (
     user_router,
     auth_router,
-    organizer_router,
-    event_router,
-    place_router,
-    favorite_place_router,
 )
 
 @asynccontextmanager
@@ -27,10 +23,10 @@ app.add_middleware(
 )
 app.include_router(auth_router.router, prefix="/auth")
 app.include_router(user_router.router, prefix="/users")
-app.include_router(organizer_router.router, prefix="/organizers")
-app.include_router(event_router.router, prefix="/events")
-app.include_router(place_router.router, prefix="/places")
-app.include_router(favorite_place_router.router, prefix="/favorites")
+#app.include_router(organizer_router.router, prefix="/organizers")
+#app.include_router(event_router.router, prefix="/events")
+#app.include_router(place_router.router, prefix="/places")
+#app.include_router(favorite_place_router.router, prefix="/favorites")
 
 def create_app():
     return app
