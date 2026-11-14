@@ -5,7 +5,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -22,16 +24,22 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Простой контейнер зависимостей без Hilt.
+ * Инициализирует и связывает между собой:
+ * Хранилище сессий
+ * HTTP-клиент OkHttpClient с авторизацией JWT
+ * Сетевой клиент для общения с бэкендом
  */
 class AppContainer(context: Context) {
 
+    // Хранилище токена и локального профиля пользователя
     val sessionStore = SessionStore(context)
 
+    // Быстрый потокобезопасный кэш токена в памяти для перехватчика OkHttp
     private val tokenRef = AtomicReference<String?>(null)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
+        // Фоновая подписка на обновления сессии для поддержания tokenRef в актуальном состоянии
         scope.launch {
             sessionStore.session.collectLatest { session ->
                 tokenRef.set(session.accessToken)
@@ -39,11 +47,31 @@ class AppContainer(context: Context) {
         }
     }
 
+    /**
+     * Перехватчик (Interceptor), который автоматически добавляет заголовок
+     * `Authorization: Bearer <token>` ко всем исходящим сетевым запросам, если пользователь авторизован
+     */
     private val authInterceptor = Interceptor { chain ->
-        val token = tokenRef.get()
+        // Проверяем токен в кэше памяти; если он ещё не успел прочитаться из DataStore, считываем синхронно
+        var token = tokenRef.get()
+        if (token.isNullOrBlank()) {
+            token = runBlocking {
+                try {
+                    sessionStore.session.first().accessToken
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            if (!token.isNullOrBlank()) {
+                tokenRef.set(token)
+            }
+        }
+
         val request = if (token.isNullOrBlank()) {
+            // Если токена нет — отправляем запрос без заголовка авторизации (например, login или register)
             chain.request()
         } else {
+            // Добавляем Bearer токен в заголовок Authorization
             chain.request().newBuilder()
                 .header("Authorization", "Bearer $token")
                 .build()
@@ -51,15 +79,20 @@ class AppContainer(context: Context) {
         chain.proceed(request)
     }
 
+    /**
+     * Настройка HTTP-клиента:
+     * authInterceptor: подставляет JWT-токен
+     * HttpLoggingInterceptor: логирует отправляемые URL, заголовки и ответы в Logcat
+     */
     private val okHttp: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        // OSM через бэк может отвечать до 60с
-        .readTimeout(90, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
         .addInterceptor(authInterceptor)
         .addInterceptor(
             HttpLoggingInterceptor().apply {
                 level = if (BuildConfig.DEBUG) {
-                    HttpLoggingInterceptor.Level.BASIC
+                    HttpLoggingInterceptor.Level.BODY
                 } else {
                     HttpLoggingInterceptor.Level.NONE
                 }
@@ -67,6 +100,8 @@ class AppContainer(context: Context) {
         )
         .build()
 
+
+    // Запросы к бекенду
     val api: StudMapApi = Retrofit.Builder()
         .baseUrl(BuildConfig.API_BASE_URL)
         .client(okHttp)
@@ -74,7 +109,15 @@ class AppContainer(context: Context) {
         .build()
         .create(StudMapApi::class.java)
 
-    val authRepository = AuthRepository(api, sessionStore)
+    /**
+     * Профил: регистрация, вход
+     */
+    val authRepository = AuthRepository(
+        api = api,
+        sessionStore = sessionStore,
+        onTokenUpdated = { newToken -> tokenRef.set(newToken) }
+    )
+
     val placeRepository = PlaceRepository(api)
     val favoriteRepository = FavoriteRepository(api)
     val eventRepository = EventRepository(api)
