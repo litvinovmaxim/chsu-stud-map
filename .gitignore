@@ -41,3 +41,13 @@ google-services.json
 
 
 log.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.env
+.venv/
+env/
+venv/
