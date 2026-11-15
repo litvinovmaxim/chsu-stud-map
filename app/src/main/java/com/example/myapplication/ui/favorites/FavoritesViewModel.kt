@@ -28,8 +28,14 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
     private val _ui = MutableStateFlow(FavoritesUiState())
     val ui: StateFlow<FavoritesUiState> = _ui.asStateFlow()
 
+    // Загружаем список избранных мест с сервера
     fun loadPlaces() {
         viewModelScope.launch {
+            val session = container.sessionStore.session.first()
+            if (!session.isLoggedIn) {
+                _ui.update { it.copy(isLoading = false, places = emptyList(), error = null) }
+                return@launch
+            }
             _ui.update { it.copy(isLoading = true, error = null) }
             try {
                 val places = container.favoriteRepository.getPlaces()
@@ -40,19 +46,21 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // Загружаем сохранённые мероприятия пользователя
     fun loadMyEvents() {
         viewModelScope.launch {
+            val session = container.sessionStore.session.first()
+            if (!session.isLoggedIn) {
+                _ui.update { it.copy(isLoading = false, events = emptyList(), error = "Войдите в аккаунт") }
+                return@launch
+            }
             _ui.update { it.copy(isLoading = true, error = null) }
             try {
-                val session = container.sessionStore.session.first()
-                val userId = session.userId
-                    ?: throw IllegalStateException("Войдите в аккаунт")
-                val ids = container.favoriteRepository.getEventIds(userId)
-                val catalog = container.eventRepository.getEvents().first
+                val myEvents = container.favoriteRepository.getFavoriteEvents()
                 _ui.update {
                     it.copy(
                         isLoading = false,
-                        events = catalog.filter { event -> event.id in ids }
+                        events = myEvents
                     )
                 }
             } catch (e: Exception) {
@@ -61,10 +69,16 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // Удаляем место из избранного на сервере
     fun removePlace(id: Int) {
         viewModelScope.launch {
-            runCatching { container.favoriteRepository.removePlace(id) }
-            loadPlaces()
+            _ui.update { state -> state.copy(places = state.places.filter { it.id != id }) }
+            try {
+                container.favoriteRepository.removePlace(id)
+            } catch (e: Exception) {
+                _ui.update { it.copy(error = e.toUserMessage()) }
+                loadPlaces()
+            }
         }
     }
 }
