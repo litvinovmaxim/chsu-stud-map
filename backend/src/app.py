@@ -2,17 +2,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import src.models
 from starlette.middleware.cors import CORSMiddleware
-
+from src.parser.scheduler import start_scheduler, stop_scheduler
 
 from src.routers import (
     user_router,
     auth_router,
-    favorite_place_router
+    favorite_place_router,
+    event_router,
 )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    start_scheduler()
     yield
+    stop_scheduler()
 
 app = FastAPI(title="StudMap", lifespan=lifespan)
 app.add_middleware(
@@ -25,7 +28,7 @@ app.add_middleware(
 app.include_router(auth_router.router, prefix="/auth")
 app.include_router(user_router.router, prefix="/users")
 #app.include_router(organizer_router.router, prefix="/organizers")
-#app.include_router(event_router.router, prefix="/events")
+app.include_router(event_router.router, prefix="/events")
 #app.include_router(place_router.router, prefix="/places")
 app.include_router(favorite_place_router.router, prefix="/favorites")
 

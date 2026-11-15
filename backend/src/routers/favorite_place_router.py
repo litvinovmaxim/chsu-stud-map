@@ -26,17 +26,10 @@ def add_favorite_place(
 
 
 # избранные места пользователя
-@router.get(
-    "/places",
-    response_model=list[place_schema.PlaceResponse]
-)
+@router.get("/places", response_model=list[place_schema.PlaceResponse])
 def get_favorite_places(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    return favorite_place_service.get_favorite_places(
-        db, current_user.id
-    )
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return favorite_place_service.get_favorite_places(db, current_user.id)
 
 
 # удалить место из избранного
@@ -46,9 +39,7 @@ def remove_favorite_place(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    success = favorite_place_service.remove_favorite_place(
-        db, current_user.id, place_id
-    )
+    success = favorite_place_service.remove_favorite_place(db, current_user.id, place_id)
 
     if not success:
         raise HTTPException(
