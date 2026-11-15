@@ -12,11 +12,11 @@ import ru.chsu.studentmap.StudentMapApplication
 import ru.chsu.studentmap.data.remote.dto.OsmPlaceDto
 import ru.chsu.studentmap.data.remote.toUserMessage
 
+// Категории объектов кампуса (кафе убрали, так как это не учебные корпуса)
 enum class CampusCategory(val title: String, val apiValue: String) {
     BUILDINGS("Корпуса", "buildings"),
     DORMS("Общежития", "dormitories"),
-    SPORTS("ФОК", "sports"),
-    CAFES("Кафе", "cafes")
+    SPORTS("ФОК", "sports")
 }
 
 data class BuildingsUiState(

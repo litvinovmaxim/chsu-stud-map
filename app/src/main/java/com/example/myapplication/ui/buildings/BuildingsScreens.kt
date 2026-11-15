@@ -244,7 +244,6 @@ private fun buildingDescription(place: OsmPlaceDto): String {
         "buildings" -> "учебный корпус"
         "dormitories" -> "общежитие"
         "sports" -> "спортивный объект"
-        "cafes" -> "точка питания"
         else -> place.category ?: "объект кампуса"
     }
     // TODO: подробное описание этажей — отдельное поле на бэке, сейчас его нет
