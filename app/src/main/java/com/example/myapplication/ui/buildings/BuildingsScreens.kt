@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -20,11 +21,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Apartment
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -41,14 +44,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.background
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import ru.chsu.studentmap.data.local.OfflineAddressDatabase
 import ru.chsu.studentmap.data.remote.dto.OsmPlaceDto
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,6 +67,7 @@ fun BuildingsScreen(
     onQueryChange: (String) -> Unit,
     onCategorySelected: (CampusCategory) -> Unit,
     onPlaceClick: (OsmPlaceDto) -> Unit,
+    onToggleFavorite: ((OsmPlaceDto) -> Unit)? = null,
     onRetry: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -117,7 +127,12 @@ fun BuildingsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(state.filtered, key = { it.listKey() }) { place ->
-                    BuildingListRow(place = place, onClick = { onPlaceClick(place) })
+                    BuildingListRow(
+                        place = place,
+                        isFavorite = state.isFavorite(place),
+                        onToggleFavorite = onToggleFavorite?.let { { it(place) } },
+                        onClick = { onPlaceClick(place) }
+                    )
                     HorizontalDivider()
                 }
             }
@@ -126,7 +141,16 @@ fun BuildingsScreen(
 }
 
 @Composable
-private fun BuildingListRow(place: OsmPlaceDto, onClick: () -> Unit) {
+private fun BuildingListRow(
+    place: OsmPlaceDto,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
+    onClick: () -> Unit
+) {
+    val displayAddress = remember(place) {
+        place.address ?: "Адрес не указан"
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -137,12 +161,21 @@ private fun BuildingListRow(place: OsmPlaceDto, onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(place.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
-                text = place.address ?: "Адрес не указан",
+                text = displayAddress,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+        if (onToggleFavorite != null) {
+            IconButton(onClick = onToggleFavorite) {
+                Icon(
+                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = if (isFavorite) "Убрать из избранного" else "В избранное",
+                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                )
+            }
         }
         Icon(
             imageVector = Icons.Outlined.Apartment,
@@ -157,11 +190,27 @@ private fun BuildingListRow(place: OsmPlaceDto, onClick: () -> Unit) {
 @Composable
 fun BuildingDetailScreen(
     place: OsmPlaceDto,
+    isFavorite: Boolean = false,
     onBack: () -> Unit,
     onAddFavorite: (OsmPlaceDto, (String) -> Unit) -> Unit
 ) {
+    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    var currentAddress by remember(place) {
+        mutableStateOf(place.address)
+    }
+
+    // Если у места не заполнен адрес — пытаемся найти его в нашей локальной базе адресов
+    LaunchedEffect(place) {
+        if (place.address.isNullOrBlank()) {
+            val addr = OfflineAddressDatabase.resolveAddress(context, place.latitude, place.longitude)
+            if (!addr.isNullOrBlank()) {
+                currentAddress = addr
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -174,11 +223,18 @@ fun BuildingDetailScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        onAddFavorite(place) { message ->
+                        val placeWithAddress = if (place.address.isNullOrBlank() && !currentAddress.isNullOrBlank()) {
+                            place.copy(address = currentAddress)
+                        } else place
+                        onAddFavorite(placeWithAddress) { message ->
                             scope.launch { snackbar.showSnackbar(message) }
                         }
                     }) {
-                        Icon(Icons.Default.FavoriteBorder, contentDescription = "В избранное")
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Убрать из избранного" else "В избранное",
+                            tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             )
@@ -191,7 +247,6 @@ fun BuildingDetailScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // TODO: бэк/OSM не отдают фото корпуса — ставим заглушку
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -212,7 +267,7 @@ fun BuildingDetailScreen(
             ) {
                 Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text(
-                    text = place.address ?: "${place.latitude}, ${place.longitude}",
+                    text = currentAddress ?: "${place.latitude}, ${place.longitude}",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(start = 8.dp)
                 )
@@ -223,15 +278,29 @@ fun BuildingDetailScreen(
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
             Spacer(Modifier.height(24.dp))
-            TextButton(
+            Button(
                 onClick = {
-                    onAddFavorite(place) { message ->
+                    val placeWithAddress = if (place.address.isNullOrBlank() && !currentAddress.isNullOrBlank()) {
+                        place.copy(address = currentAddress)
+                    } else place
+                    onAddFavorite(placeWithAddress) { message ->
                         scope.launch { snackbar.showSnackbar(message) }
                     }
                 },
-                modifier = Modifier.padding(horizontal = 8.dp)
+                modifier = Modifier.padding(horizontal = 16.dp),
+                colors = if (isFavorite) {
+                    ButtonDefaults.filledTonalButtonColors()
+                } else {
+                    ButtonDefaults.buttonColors()
+                }
             ) {
-                Text("Добавить в избранное")
+                Icon(
+                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(if (isFavorite) "Убрать из избранного" else "Добавить в избранное")
             }
         }
     }

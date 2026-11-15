@@ -6,10 +6,12 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ru.chsu.studentmap.StudentMapApplication
 import ru.chsu.studentmap.data.remote.dto.OsmPlaceDto
+import ru.chsu.studentmap.data.remote.dto.PlaceResponseDto
 import ru.chsu.studentmap.data.remote.toUserMessage
 
 // Категории объектов кампуса (кафе убрали, так как это не учебные корпуса)
@@ -25,7 +27,8 @@ data class BuildingsUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val places: List<OsmPlaceDto> = emptyList(),
-    val selected: OsmPlaceDto? = null
+    val selected: OsmPlaceDto? = null,
+    val favoritePlaces: List<PlaceResponseDto> = emptyList()
 ) {
     val filtered: List<OsmPlaceDto>
         get() {
@@ -36,6 +39,19 @@ data class BuildingsUiState(
                     it.address.orEmpty().contains(q, ignoreCase = true)
             }
         }
+
+    fun isFavorite(place: OsmPlaceDto): Boolean {
+        return favoritePlaces.any { fav -> isPlaceMatching(place, fav) }
+    }
+}
+
+fun isPlaceMatching(place: OsmPlaceDto, fav: PlaceResponseDto): Boolean {
+    if (place.osmId != null && place.osmType != null && fav.osmId != null && fav.osmType != null) {
+        return place.osmId == fav.osmId && place.osmType.equals(fav.osmType, ignoreCase = true)
+    }
+    return place.name.equals(fav.name, ignoreCase = true) &&
+        Math.abs(place.latitude - fav.latitude) < 0.0001 &&
+        Math.abs(place.longitude - fav.longitude) < 0.0001
 }
 
 class BuildingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -48,6 +64,15 @@ class BuildingsViewModel(application: Application) : AndroidViewModel(applicatio
     init {
         // Список корпусов — с бэка (OSM), не путать с точками на карте
         load()
+        viewModelScope.launch {
+            container.sessionStore.session.collect { session ->
+                if (session.isLoggedIn) {
+                    refreshFavorites()
+                } else {
+                    _ui.update { it.copy(favoritePlaces = emptyList()) }
+                }
+            }
+        }
     }
 
     fun onQueryChange(value: String) {
@@ -77,14 +102,53 @@ class BuildingsViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun addToFavorites(place: OsmPlaceDto, onDone: (String) -> Unit) {
+    fun refreshFavorites() {
         viewModelScope.launch {
             try {
-                container.favoriteRepository.addPlace(place)
-                onDone("Добавлено в избранное")
+                val session = container.sessionStore.session.first()
+                if (session.isLoggedIn) {
+                    val favs = container.favoriteRepository.getPlaces()
+                    _ui.update { it.copy(favoritePlaces = favs) }
+                }
+            } catch (_: Exception) {
+                // Игнорируем сетевые сбои фонового обновления
+            }
+        }
+    }
+
+    fun toggleFavorite(place: OsmPlaceDto, onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val session = container.sessionStore.session.first()
+                if (!session.isLoggedIn) {
+                    onDone("Войдите в аккаунт")
+                    return@launch
+                }
+
+                val existingFav = _ui.value.favoritePlaces.firstOrNull { fav ->
+                    isPlaceMatching(place, fav)
+                }
+
+                if (existingFav != null) {
+                    container.favoriteRepository.removePlace(existingFav.id)
+                    _ui.update { state ->
+                        state.copy(favoritePlaces = state.favoritePlaces.filter { it.id != existingFav.id })
+                    }
+                    onDone("Удалено из избранного")
+                } else {
+                    val added = container.favoriteRepository.addPlace(place)
+                    _ui.update { state ->
+                        state.copy(favoritePlaces = state.favoritePlaces + added)
+                    }
+                    onDone("Добавлено в избранное")
+                }
             } catch (e: Exception) {
                 onDone(e.toUserMessage())
             }
         }
+    }
+
+    fun addToFavorites(place: OsmPlaceDto, onDone: (String) -> Unit) {
+        toggleFavorite(place, onDone)
     }
 }
