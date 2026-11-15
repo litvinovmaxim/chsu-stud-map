@@ -2,7 +2,7 @@ package ru.chsu.studentmap.data.remote.dto
 
 import com.google.gson.annotations.SerializedName
 
-// ----- Auth (backend/src/routers/auth_router.py) -----
+// Авторизация
 
 data class TokenResponseDto(
     @SerializedName("access_token") val accessToken: String,
@@ -28,7 +28,7 @@ data class UserUpdateDto(
     val password: String? = null
 )
 
-// ----- Places / OSM (GET /places/map/places) -----
+// Места
 
 data class OsmPlaceDto(
     val name: String,
@@ -40,7 +40,7 @@ data class OsmPlaceDto(
     @SerializedName("osm_id") val osmId: Long? = null
 )
 
-// ----- Favorite places (GET/POST /favorites/places) -----
+// Избранные места
 
 data class PlaceCreateDto(
     val name: String,
@@ -72,9 +72,16 @@ data class FavoriteEventLinkDto(
     @SerializedName("id_event") val eventId: Int? = null
 )
 
+data class OrganizerDto(
+    val id: Int,
+    val name: String? = null,
+    val surname: String? = null,
+    val email: String? = null,
+    @SerializedName("phone_number") val phoneNumber: String? = null
+)
+
 /**
- * Модель под backend/src/models/event_model.py.
- * TODO: подключить, когда появится рабочий GET /events (файла event_router.py в backend нет — бэк не трогаем).
+ * Модель под backend/src/schemas/event_schema.py (EventResponse).
  */
 data class EventDto(
     val id: Int,
@@ -86,6 +93,7 @@ data class EventDto(
     val location: String? = null,
     val description: String? = null,
     val source: String? = null,
-    // Локальное поле для вёрстки; бэк картинок пока не отдаёт
+    val organizers: List<OrganizerDto>? = null,
+    @SerializedName("is_favorite") val isFavorite: Boolean? = false,
     val imageUrl: String? = null
 )
