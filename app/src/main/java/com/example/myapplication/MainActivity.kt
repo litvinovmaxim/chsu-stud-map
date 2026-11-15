@@ -84,34 +84,34 @@ import ru.chsu.studentmap.ui.events.EventsViewModel
 import ru.chsu.studentmap.ui.favorites.FavoritePlacesScreen
 import ru.chsu.studentmap.ui.favorites.FavoritesViewModel
 import ru.chsu.studentmap.ui.favorites.MyEventsScreen
+import ru.chsu.studentmap.ui.welcome.WelcomeScreen
 
 class MainActivity : ComponentActivity() {
-
-    private val locationPermissionLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Запрос разрешения на доступ к геолокации устройства
-        if (ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            println("Location Permission GRANTED")
-        } else {
-            locationPermissionLauncher.launch(
-                Manifest.permission.ACCESS_FINE_LOCATION
-            )
-        }
+        // Проверяем, показывался ли уже вступительный экран
+        val prefs = getSharedPreferences("chsu_map_prefs", MODE_PRIVATE)
+        val isWelcomeCompletedInitial = prefs.getBoolean("welcome_completed", false)
 
         setContent {
             MyApplicationTheme {
-                MyApplicationApp()
+                // Если первый запуск — сначала показываем вступительный экран с рассказом о приложении
+                // и запросом разрешения на геолокацию
+                var welcomeCompleted by rememberSaveable { mutableStateOf(isWelcomeCompletedInitial) }
+
+                if (!welcomeCompleted) {
+                    WelcomeScreen(
+                        onContinue = {
+                            prefs.edit().putBoolean("welcome_completed", true).apply()
+                            welcomeCompleted = true
+                        }
+                    )
+                } else {
+                    MyApplicationApp()
+                }
             }
         }
     }
