@@ -115,17 +115,17 @@ data class UserSession(
     val surname: String?,
     val email: String?
 ) {
-    /** Пользователь считается авторизованным, если у него сохранён валидный токен */
-    val isLoggedIn: Boolean get() = !accessToken.isNullOrBlank()
+    // Пользователь считается авторизованным, если у него сохранён токен и его срок не истёк
+    val isLoggedIn: Boolean get() = !accessToken.isNullOrBlank() && !ru.chsu.studentmap.data.remote.isJwtExpired(accessToken)
 
-    /** Отображаемое имя пользователя (Имя Фамилия, либо email, либо дефолтная заглушка) */
+    // Отображаемое имя пользователя (Имя Фамилия, либо email, либо дефолтная заглушка)
     val displayName: String
         get() {
             val full = listOfNotNull(name, surname).filter { it.isNotBlank() }.joinToString(" ").trim()
             return full.ifBlank { email ?: "Студент" }
         }
 
-    /** Инициалы пользователя для отображения на круглой аватарке (например, "ИИ") */
+    // Инициалы пользователя для отображения на круглой аватарке
     val initials: String
         get() {
             val first = name?.trim()?.firstOrNull()?.uppercaseChar()

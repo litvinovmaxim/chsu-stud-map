@@ -67,6 +67,13 @@ class AppContainer(context: Context) {
             }
         }
 
+        // Проверяем, не истёк ли токен локально
+        if (ru.chsu.studentmap.data.remote.isJwtExpired(token)) {
+            token = null
+            tokenRef.set(null)
+            scope.launch { sessionStore.clear() }
+        }
+
         val request = if (token.isNullOrBlank()) {
             // Если токена нет — отправляем запрос без заголовка авторизации (например, login или register)
             chain.request()
@@ -76,7 +83,17 @@ class AppContainer(context: Context) {
                 .header("Authorization", "Bearer $token")
                 .build()
         }
-        chain.proceed(request)
+        val response = chain.proceed(request)
+
+        // Если сервер ответил 401 на запрос с токеном — сессия на сервере завершена/истекла
+        if (response.code == 401 && request.header("Authorization") != null) {
+            tokenRef.set(null)
+            scope.launch {
+                sessionStore.clear()
+            }
+        }
+
+        response
     }
 
     /**
