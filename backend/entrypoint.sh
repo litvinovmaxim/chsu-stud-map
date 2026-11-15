@@ -38,22 +38,51 @@ print("Не удалось подключиться к базе данных з�
 sys.exit(1)
 EOF
 
-echo "Проверка и создание таблиц базы данных..."
+echo "Применение миграций Alembic..."
 python - << 'EOF'
+import os
+import sys
+from alembic.config import Config
+from alembic import command
+
+db_user = os.getenv("DB_USER", "postgres")
+db_password = os.getenv("DB_PASSWORD", "postgres")
+db_host = os.getenv("DB_HOST", "db")
+db_port = os.getenv("DB_PORT", "5432")
+db_name = os.getenv("DB_NAME", "StudMap")
+
+db_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+
 try:
-    from src.db.database import engine, Base
-    import src.models.user_model
-    import src.models.organizer_model
-    import src.models.event_model
-    import src.models.favorite_place_model
-    import src.models.user_place_model
-    import src.models.user_event_model
-    import src.models.organizer_event_model
-    import src.models.token_blacklist_model
-    Base.metadata.create_all(bind=engine)
-    print("Таблицы базы данных успешно проверены/созданы.")
+    alembic_cfg = Config("alembic.ini")
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+
+    # Проверяем состояние базы: созданы ли уже таблицы и инициализирован ли alembic
+    import psycopg2
+    conn = psycopg2.connect(
+        user=db_user,
+        password=db_password,
+        host=db_host,
+        port=int(db_port),
+        dbname=db_name
+    )
+    with conn.cursor() as cur:
+        cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alembic_version');")
+        has_alembic = cur.fetchone()[0]
+        cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'events');")
+        has_tables = cur.fetchone()[0]
+    conn.close()
+
+    if not has_alembic and has_tables:
+        print("База данных уже содержит таблицы, созданные до Alembic. Синхронизируем состояние: alembic stamp head...")
+        command.stamp(alembic_cfg, "head")
+        print("База данных успешно привязана к текущей версии миграций (stamp head).")
+    else:
+        command.upgrade(alembic_cfg, "head")
+        print("Миграции Alembic успешно применены.")
 except Exception as e:
-    print(f"Предупреждение при проверке таблиц: {e}")
+    print(f"Ошибка при применении миграций Alembic: {e}")
+    sys.exit(1)
 EOF
 
 if [ $# -gt 0 ]; then
