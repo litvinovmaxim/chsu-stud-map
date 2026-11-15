@@ -45,18 +45,24 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRailDefaults
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -72,7 +78,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
+import org.osmdroid.util.GeoPoint
 import ru.chsu.studentmap.data.local.UserSession
+import ru.chsu.studentmap.data.remote.toUserMessage
 import ru.chsu.studentmap.ui.auth.AuthScreen
 import ru.chsu.studentmap.ui.auth.AuthViewModel
 import ru.chsu.studentmap.ui.buildings.BuildingDetailScreen
@@ -451,6 +460,8 @@ fun MyApplicationApp(
 
     // Состояние открытия диалога редактирования профиля
     var showEditProfileDialog by remember { mutableStateOf(false) }
+    // Координаты точки, на которую нужно навести карту (например, когда нажали на избранное место в профиле)
+    var targetMapLocation by remember { mutableStateOf<GeoPoint?>(null) }
 
     val session by authViewModel.session.collectAsStateWithLifecycle()
     val authForm by authViewModel.form.collectAsStateWithLifecycle()
@@ -458,6 +469,9 @@ fun MyApplicationApp(
     val eventsState by eventsViewModel.ui.collectAsStateWithLifecycle()
     val favoritesState by favoritesViewModel.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val app = context.applicationContext as StudentMapApplication
+    val container = app.container
 
     // При успешной авторизации возвращаемся из экрана входа/регистрации в меню профиля
     LaunchedEffect(session.isLoggedIn) {
@@ -478,6 +492,13 @@ fun MyApplicationApp(
                 }
             }
             else -> Unit
+        }
+    }
+
+    LaunchedEffect(currentDestination, session.isLoggedIn) {
+        if (session.isLoggedIn && (currentDestination == AppDestinations.LIST || currentDestination == AppDestinations.MAP)) {
+            buildingsViewModel.refreshFavorites()
+            favoritesViewModel.loadPlaces()
         }
     }
 
@@ -502,21 +523,49 @@ fun MyApplicationApp(
         )
     }
 
+    val navSuiteItemColors = NavigationSuiteDefaults.itemColors(
+        navigationBarItemColors = NavigationBarItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.primary,
+            selectedTextColor = MaterialTheme.colorScheme.primary,
+            indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        navigationRailItemColors = NavigationRailItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.primary,
+            selectedTextColor = MaterialTheme.colorScheme.primary,
+            indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    )
+
     // Контейнер с навигацией
     NavigationSuiteScaffold(
+        navigationSuiteColors = NavigationSuiteDefaults.colors(
+            navigationBarContainerColor = MaterialTheme.colorScheme.surface,
+            navigationBarContentColor = MaterialTheme.colorScheme.onSurface
+        ),
         navigationSuiteItems = {
             AppDestinations.entries.forEach { destination ->
+                val isSelected = destination == currentDestination
                 item(
                     icon = {
                         Icon(
-                            painterResource(destination.iconRes),
+                            painter = painterResource(destination.iconRes),
                             contentDescription = destination.label,
-                            modifier = Modifier.size(35.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     },
-                    label = { Text(destination.label) },
-                    selected = destination == currentDestination,
-                    onClick = { currentDestination = destination }
+                    label = {
+                        Text(
+                            text = destination.label,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    },
+                    selected = isSelected,
+                    onClick = { currentDestination = destination },
+                    colors = navSuiteItemColors
                 )
             }
         }
@@ -551,7 +600,12 @@ fun MyApplicationApp(
                                 FavoritePlacesScreen(
                                     state = favoritesState,
                                     onBack = { profileSubScreen = ProfileSubScreen.MENU },
-                                    onRemove = favoritesViewModel::removePlace
+                                    onRemove = favoritesViewModel::removePlace,
+                                    // Кликнули по месту — летим на карту к этим координатам
+                                    onPlaceClick = { place ->
+                                        targetMapLocation = GeoPoint(place.latitude, place.longitude)
+                                        currentDestination = AppDestinations.MAP
+                                    }
                                 )
                             }
 
@@ -559,7 +613,14 @@ fun MyApplicationApp(
                                 BackHandler { profileSubScreen = ProfileSubScreen.MENU }
                                 MyEventsScreen(
                                     state = favoritesState,
-                                    onBack = { profileSubScreen = ProfileSubScreen.MENU }
+                                    onBack = { profileSubScreen = ProfileSubScreen.MENU },
+                                    // Убираем/добавляем событие в избранное и обновляем список
+                                    onToggleFavorite = { event ->
+                                        eventsViewModel.toggleFavorite(event) { message ->
+                                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                            favoritesViewModel.loadMyEvents()
+                                        }
+                                    }
                                 )
                             }
 
@@ -596,7 +657,39 @@ fun MyApplicationApp(
                     }
 
                     AppDestinations.MAP -> {
-                        OsmMapView()
+                        OsmMapView(
+                            targetLocation = targetMapLocation,
+                            onTargetLocationHandled = { targetMapLocation = null },
+                            favoritePlaces = favoritesState.places,
+                            onAddFavorite = { placeDto, callback ->
+                                if (!session.isLoggedIn) {
+                                    callback("Войдите в аккаунт")
+                                } else {
+                                    scope.launch {
+                                        try {
+                                            container.favoriteRepository.addPlace(placeDto)
+                                            buildingsViewModel.refreshFavorites()
+                                            favoritesViewModel.loadPlaces()
+                                            callback("Добавлено в избранное")
+                                        } catch (e: Exception) {
+                                            callback(e.toUserMessage())
+                                        }
+                                    }
+                                }
+                            },
+                            onRemoveFavorite = { placeId, callback ->
+                                scope.launch {
+                                    try {
+                                        container.favoriteRepository.removePlace(placeId)
+                                        buildingsViewModel.refreshFavorites()
+                                        favoritesViewModel.loadPlaces()
+                                        callback("Удалено из избранного")
+                                    } catch (e: Exception) {
+                                        callback(e.toUserMessage())
+                                    }
+                                }
+                            }
+                        )
                     }
 
                     AppDestinations.LIST -> {
@@ -607,18 +700,28 @@ fun MyApplicationApp(
                                 onQueryChange = buildingsViewModel::onQueryChange,
                                 onCategorySelected = buildingsViewModel::onCategorySelected,
                                 onPlaceClick = buildingsViewModel::select,
+                                onToggleFavorite = { place ->
+                                    if (!session.isLoggedIn) {
+                                        Toast.makeText(context, "Войдите в аккаунт", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        buildingsViewModel.toggleFavorite(place) { message ->
+                                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
                                 onRetry = buildingsViewModel::load
                             )
                         } else {
                             BackHandler { buildingsViewModel.select(null) }
                             BuildingDetailScreen(
                                 place = selectedBuilding,
+                                isFavorite = buildingsState.isFavorite(selectedBuilding),
                                 onBack = { buildingsViewModel.select(null) },
                                 onAddFavorite = { place, callback ->
                                     if (!session.isLoggedIn) {
                                         callback("Войдите в аккаунт")
                                     } else {
-                                        buildingsViewModel.addToFavorites(place, callback)
+                                        buildingsViewModel.toggleFavorite(place, callback)
                                     }
                                 }
                             )
