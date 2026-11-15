@@ -115,21 +115,28 @@ interface StudMapApi {
     @DELETE("favorites/places/{placeId}")
     suspend fun removeFavoritePlace(@Path("placeId") placeId: Int): MessageResponseDto
 
-    @POST("favorites/events/{userId}/{eventId}")
-    suspend fun addFavoriteEvent(
-        @Path("userId") userId: Int,
-        @Path("eventId") eventId: Int
-    ): FavoriteEventLinkDto
+    // ==========================================
+    // Раздел: Мероприятия (/events)
+    // ==========================================
 
-    @GET("favorites/events/{userId}")
-    suspend fun getFavoriteEvents(@Path("userId") userId: Int): List<FavoriteEventLinkDto>
-
-    @DELETE("favorites/events/{userId}/{eventId}")
-    suspend fun removeFavoriteEvent(
-        @Path("userId") userId: Int,
-        @Path("eventId") eventId: Int
-    ): MessageResponseDto
-
-    @GET("events")
+    @GET("events/")
     suspend fun getEvents(): List<EventDto>
+
+    @GET("events/search")
+    suspend fun searchEvents(
+        @Query("search") search: String? = null,
+        @Query("status") status: String? = null
+    ): List<EventDto>
+
+    @GET("events/{eventId}")
+    suspend fun getEventById(@Path("eventId") eventId: Int): EventDto
+
+    @GET("events/favorites/my")
+    suspend fun getFavoriteEvents(): List<EventDto>
+
+    @POST("events/{eventId}/favorite")
+    suspend fun addFavoriteEvent(@Path("eventId") eventId: Int): Map<String, Boolean>
+
+    @DELETE("events/{eventId}/favorite")
+    suspend fun removeFavoriteEvent(@Path("eventId") eventId: Int): Map<String, Boolean>
 }

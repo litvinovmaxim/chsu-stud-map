@@ -59,36 +59,53 @@ class EventsViewModel(application: Application) : AndroidViewModel(application) 
 
     fun select(event: EventDto?) = _ui.update { it.copy(selected = event) }
 
+    // Загружаем все мероприятия с сервера
     fun load() {
         viewModelScope.launch {
             _ui.update { it.copy(isLoading = true, error = null) }
-            val (events, fromBackend) = container.eventRepository.getEvents()
-            _ui.update {
-                it.copy(
-                    isLoading = false,
-                    events = events,
-                    fromBackend = fromBackend,
-                    error = if (fromBackend) null else null
-                )
+            try {
+                // Запрашиваем актуальный список с бэкенда
+                val events = container.eventRepository.getEvents()
+                val favIds = events.filter { it.isFavorite == true }.map { it.id }.toSet()
+                _ui.update {
+                    it.copy(
+                        isLoading = false,
+                        events = events,
+                        fromBackend = true,
+                        favoriteIds = if (favIds.isNotEmpty()) favIds else it.favoriteIds,
+                        error = null
+                    )
+                }
+                // Если пользователь авторизован, подтягиваем его избранные события
+                refreshFavorites()
+            } catch (e: Exception) {
+                _ui.update {
+                    it.copy(
+                        isLoading = false,
+                        events = emptyList(),
+                        fromBackend = false,
+                        error = e.toUserMessage()
+                    )
+                }
             }
-            refreshFavorites()
         }
     }
 
+    // Добавляем или удаляем мероприятие из "Моих событий"
     fun toggleFavorite(event: EventDto, onMessage: (String) -> Unit) {
         viewModelScope.launch {
+            // Без аккаунта сохранять нельзя — просим войти
             val session = container.sessionStore.session.first()
-            val userId = session.userId
-            if (userId == null || !session.isLoggedIn) {
+            if (!session.isLoggedIn) {
                 onMessage("Войдите в аккаунт, чтобы сохранять события")
                 return@launch
             }
             try {
                 val already = event.id in _ui.value.favoriteIds
                 if (already) {
-                    container.favoriteRepository.removeEvent(userId, event.id)
+                    container.favoriteRepository.removeEvent(event.id)
                 } else {
-                    container.favoriteRepository.addEvent(userId, event.id)
+                    container.favoriteRepository.addEvent(event.id)
                 }
                 refreshFavorites()
                 onMessage(if (already) "Удалено из моих событий" else "Добавлено в мои события")
@@ -98,11 +115,12 @@ class EventsViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // Обновляем список id избранных событий авторизованного пользователя
     private suspend fun refreshFavorites() {
         val session = container.sessionStore.session.first()
-        val userId = session.userId ?: return
+        if (!session.isLoggedIn) return
         runCatching {
-            container.favoriteRepository.getEventIds(userId)
+            container.favoriteRepository.getEventIds()
         }.onSuccess { ids ->
             _ui.update { it.copy(favoriteIds = ids) }
         }
