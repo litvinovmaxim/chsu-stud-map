@@ -16,7 +16,7 @@ security = HTTPBearer()
 SECRET_KEY = "studmap_my_secret_key_2026_very_long"
 
 ALGORITHM = "HS256"
-EXP_TIME = timedelta(minutes=30)
+EXP_TIME = timedelta(days=30)
 
 # Настройки хеширования паролей
 pwd_context = CryptContext(
