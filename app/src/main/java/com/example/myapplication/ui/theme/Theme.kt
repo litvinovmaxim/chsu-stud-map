@@ -1,6 +1,5 @@
 package com.example.myapplication.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -9,35 +8,48 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
+// Темная тема в фирменных оттенках
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = Color(0xFFFF6B6B),
+    onPrimary = Color(0xFF4D0005),
+    primaryContainer = Color(0xFF93000D),
+    onPrimaryContainer = Color(0xFFFFDAD6),
+    secondary = Color(0xFFFF897D),
+    onSecondary = Color(0xFF5F1511),
+    background = Color(0xFF141212),
+    onBackground = Color(0xFFEDE0DE),
+    surface = Color(0xFF1E1A1A),
+    onSurface = Color(0xFFEDE0DE),
+    surfaceVariant = Color(0xFF2E2727),
+    onSurfaceVariant = Color(0xFFD8C2BF),
+    outline = Color(0xFFA08C8A)
 )
 
+// Светлая тема: наш фирменный красный ЧГУ и белый цвет
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
+    primary = ChsuRed,
+    onPrimary = ChsuWhite,
+    primaryContainer = ChsuRedLight,
+    onPrimaryContainer = ChsuRedText,
+    secondary = ChsuRedDark,
+    onSecondary = ChsuWhite,
+    background = ChsuWhite,
     onBackground = Color(0xFF1C1B1F),
+    surface = ChsuWhite,
     onSurface = Color(0xFF1C1B1F),
-    */
+    surfaceVariant = ChsuSurfaceVariant,
+    onSurfaceVariant = ChsuGrayText,
+    outline = ChsuOutline
 )
 
 @Composable
 fun MyApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // dynamicColor по умолчанию выключаем, чтобы не перебивать фирменные цвета ЧГУ системной темой Android 12+
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
